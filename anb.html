@@ -33,7 +33,18 @@
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             body { background: white; padding: 0; }
-            .printable-area { border: none !important; shadow: none !important; }
+            .printable-area { border: none !important; box-shadow: none !important; }
+        }
+
+        /* Modal Animation */
+        #image-modal:not(.hidden) {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
     </style>
 </head>
@@ -43,7 +54,6 @@
         <!-- Header -->
         <header class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 no-print">
             <div class="flex items-center gap-4">
-                <!-- Home Button -->
                 <button onclick="goHome()" class="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-all shadow-sm active:scale-95" title="الصفحة الرئيسية">
                     <i data-lucide="home"></i>
                 </button>
@@ -64,7 +74,7 @@
         </header>
 
         <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <!-- Sidebar: Search & List -->
+            <!-- Sidebar -->
             <div class="lg:col-span-4 space-y-4 no-print">
                 <div class="relative group">
                     <i data-lucide="search" class="absolute right-3 top-3.5 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
@@ -75,15 +85,13 @@
                     <div class="p-4 border-b bg-gray-50/50 flex justify-between items-center">
                         <span class="text-sm font-bold text-gray-500" id="list-count">قائمة الموظفين (0)</span>
                     </div>
-                    <div id="employee-list">
-                        <!-- Employee list items will be injected here -->
-                    </div>
+                    <div id="employee-list"></div>
                 </div>
             </div>
 
             <!-- Content Area -->
             <div class="lg:col-span-8">
-                <!-- Form Area (Hidden by default) -->
+                <!-- Form Area -->
                 <div id="form-container" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-gray-100 no-print">
                     <div class="flex justify-between items-center mb-8">
                         <h2 class="text-2xl font-bold text-gray-800" id="form-title">إضافة موظف جديد</h2>
@@ -151,11 +159,9 @@
                 </div>
 
                 <!-- Detail View Area -->
-                <div id="detail-container" class="hidden">
-                    <!-- Dynamic Content -->
-                </div>
+                <div id="detail-container" class="hidden"></div>
 
-                <!-- Empty State (Home Screen Content) -->
+                <!-- Empty State -->
                 <div id="empty-state" class="bg-white p-20 rounded-3xl border-2 border-dashed border-gray-200 text-center flex flex-col items-center justify-center">
                     <div class="bg-blue-50 p-8 rounded-full mb-6 text-blue-200">
                         <i data-lucide="briefcase" size="64" style="width: 64px; height: 64px;"></i>
@@ -167,30 +173,72 @@
         </main>
     </div>
 
+    <!-- Image Preview Modal -->
+    <div id="image-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 no-print" onclick="if(event.target === this) closeModal()">
+        <div class="relative max-w-4xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+            <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 id="modal-title" class="font-bold text-gray-700">معاينة الوثيقة</h3>
+                <div class="flex gap-2">
+                    <button onclick="printCurrentDoc()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition" title="طباعة الوثيقة">
+                        <i data-lucide="printer"></i>
+                    </button>
+                    <button onclick="closeModal()" class="p-2 text-gray-400 hover:text-red-500 rounded-full transition">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 flex justify-center bg-gray-200 min-h-[300px]">
+                <img id="modal-img" src="" class="max-w-full max-h-[70vh] object-contain shadow-lg rounded-lg">
+            </div>
+        </div>
+    </div>
+
     <script>
+        // --- تهيئة المتغيرات ---
         let employees = JSON.parse(localStorage.getItem('employees_html_db')) || [];
         let selectedId = null;
 
-        // Initialize Icons
+        // --- الوظائف المساعدة ---
         function initIcons() {
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
-        // Home Navigation
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        function calculateDuration(dateStr) {
+            if (!dateStr) return "غير متوفر";
+            const start = new Date(dateStr);
+            const end = new Date();
+            let years = end.getFullYear() - start.getFullYear();
+            let months = end.getMonth() - start.getMonth();
+            let days = end.getDate() - start.getDate();
+            if (days < 0) { months--; days += 30; }
+            if (months < 0) { years--; months += 12; }
+            return `${years} سنة و ${months} شهر و ${days} يوم`;
+        }
+
+        // --- وظائف الواجهة ---
         function goHome() {
             selectedId = null;
             document.getElementById('form-container').classList.add('hidden');
             document.getElementById('detail-container').classList.add('hidden');
             document.getElementById('empty-state').classList.remove('hidden');
-            renderList(); // Refresh list to remove selection highlight
+            renderList();
         }
 
-        // Render Sidebar List
         function renderList(list = employees) {
             const listContainer = document.getElementById('employee-list');
             const countLabel = document.getElementById('list-count');
-            countLabel.innerText = `قائمة الموظفين (${list.length})`;
+            if (!listContainer) return;
             
+            countLabel.innerText = `قائمة الموظفين (${list.length})`;
             listContainer.innerHTML = list.map(emp => `
                 <div onclick="viewEmployee('${emp.id}')" class="p-4 border-b last:border-0 cursor-pointer transition-all hover:bg-blue-50 ${selectedId === emp.id ? 'bg-blue-50 border-r-4 border-r-blue-600' : ''}">
                     <p class="font-bold text-gray-800 text-right">${emp.name}</p>
@@ -203,7 +251,6 @@
             initIcons();
         }
 
-        // Filter Function
         function filterEmployees() {
             const val = document.getElementById('search-input').value.toLowerCase();
             const filtered = employees.filter(e => 
@@ -214,7 +261,6 @@
             renderList(filtered);
         }
 
-        // Show/Hide UI Parts
         function showAddForm() {
             selectedId = null;
             document.getElementById('empty-state').classList.add('hidden');
@@ -223,33 +269,27 @@
             document.getElementById('employee-form').reset();
             document.getElementById('emp-id').value = '';
             document.getElementById('form-title').innerText = 'إضافة موظف جديد';
-            renderList(); // Refresh list to remove selection highlight
             initIcons();
         }
 
         function hideForm() {
             document.getElementById('form-container').classList.add('hidden');
-            if (!selectedId) document.getElementById('empty-state').classList.remove('hidden');
-            else document.getElementById('detail-container').classList.remove('hidden');
+            if (!selectedId) {
+                document.getElementById('empty-state').classList.remove('hidden');
+            } else {
+                document.getElementById('detail-container').classList.remove('hidden');
+            }
         }
 
-        // File to Base64 helper
-        const toBase64 = file => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-
-        // Save Function
+        // --- العمليات الأساسية (CRUD) ---
         async function saveEmployee(e) {
             e.preventDefault();
-            const id = document.getElementById('emp-id').value || Date.now().toString();
+            const idInput = document.getElementById('emp-id').value;
+            const id = idInput || Date.now().toString();
             
             const idImgFile = document.getElementById('emp-id-img').files[0];
             const secFile = document.getElementById('emp-sec-file').files[0];
-
-            let existingEmp = employees.find(e => e.id === id);
+            let existingEmp = employees.find(emp => emp.id === id);
 
             const newEmp = {
                 id,
@@ -264,8 +304,8 @@
                 securityFile: secFile ? await toBase64(secFile) : (existingEmp ? existingEmp.securityFile : null)
             };
 
-            if (document.getElementById('emp-id').value) {
-                employees = employees.map(e => e.id === id ? newEmp : e);
+            if (idInput) {
+                employees = employees.map(emp => emp.id === id ? newEmp : emp);
             } else {
                 employees.push(newEmp);
             }
@@ -276,7 +316,6 @@
             hideForm();
         }
 
-        // View Detail
         function viewEmployee(id) {
             selectedId = id;
             const emp = employees.find(e => e.id === id);
@@ -303,9 +342,9 @@
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="editEmployee('${emp.id}')" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg"><i data-lucide="edit"></i></button>
-                            <button onclick="window.print()" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg"><i data-lucide="printer"></i></button>
-                            <button onclick="deleteEmployee('${emp.id}')" class="p-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-white"><i data-lucide="trash-2"></i></button>
+                            <button onclick="editEmployee('${emp.id}')" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"><i data-lucide="edit"></i></button>
+                            <button onclick="window.print()" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"><i data-lucide="printer"></i></button>
+                            <button onclick="deleteEmployee('${emp.id}')" class="p-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-white transition-colors"><i data-lucide="trash-2"></i></button>
                         </div>
                     </div>
                     
@@ -337,25 +376,21 @@
                                             <i data-lucide="phone" class="text-emerald-600"></i>
                                             <div><p class="text-[10px] text-gray-400">رقم الجوال</p><p class="font-bold">${emp.phone}</p></div>
                                         </div>
-                                        <a href="https://wa.me/${emp.phone}" target="_blank" class="bg-emerald-500 text-white p-2 rounded-lg no-print"><i data-lucide="external-link" size="16"></i></a>
+                                        <a href="https://wa.me/${emp.phone}" target="_blank" class="bg-emerald-500 text-white p-2 rounded-lg no-print hover:bg-emerald-600 transition-colors"><i data-lucide="external-link" size="16"></i></a>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-4">
-                                        <div class="text-center">
+                                        <div class="text-center group">
                                             <p class="text-[10px] font-bold text-gray-500 mb-1">صورة الهوية</p>
-                                            <div class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border">
+                                            <div onclick="openPreview('${emp.idImage}', 'صورة هوية: ${emp.name}')" class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border hover:border-blue-500 cursor-zoom-in transition-all relative">
                                                 ${emp.idImage ? `<img src="${emp.idImage}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="text-gray-300"></i>`}
                                             </div>
-                                            <button onclick="shareFile('${emp.idImage}', 'صورة الهوية')" class="mt-2 text-[10px] text-emerald-600 no-print flex items-center gap-1 mx-auto"><i data-lucide="share-2" size="12"></i> مشاركة واتساب</button>
                                         </div>
-                                        <div class="text-center">
+                                        <div class="text-center group">
                                             <p class="text-[10px] font-bold text-gray-500 mb-1">الملف الأمني</p>
-                                            <div class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border">
-                                                ${emp.securityFile ? 
-                                                    (emp.securityFile.startsWith('data:application/pdf') ? `<i data-lucide="file-text" class="text-red-500"></i>` : `<img src="${emp.securityFile}" class="w-full h-full object-cover">`) 
-                                                    : `<i data-lucide="file-text" class="text-gray-300"></i>`}
+                                            <div onclick="openPreview('${emp.securityFile}', 'الملف الأمني: ${emp.name}')" class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border hover:border-blue-500 cursor-zoom-in transition-all relative">
+                                                ${emp.securityFile ? `<img src="${emp.securityFile}" class="w-full h-full object-cover">` : `<i data-lucide="file-text" class="text-gray-300"></i>`}
                                             </div>
-                                            <button onclick="shareFile('${emp.securityFile}', 'الملف الأمني')" class="mt-2 text-[10px] text-emerald-600 no-print flex items-center gap-1 mx-auto"><i data-lucide="share-2" size="12"></i> مشاركة واتساب</button>
                                         </div>
                                     </div>
                                 </div>
@@ -368,22 +403,9 @@
             renderList();
         }
 
-        // Calculation Service Duration
-        function calculateDuration(dateStr) {
-            if (!dateStr) return "غير متوفر";
-            const start = new Date(dateStr);
-            const end = new Date();
-            let years = end.getFullYear() - start.getFullYear();
-            let months = end.getMonth() - start.getMonth();
-            let days = end.getDate() - start.getDate();
-            if (days < 0) { months--; days += 30; }
-            if (months < 0) { years--; months += 12; }
-            return `${years} سنة و ${months} شهر و ${days} يوم`;
-        }
-
-        // Edit/Delete
         function editEmployee(id) {
             const emp = employees.find(e => e.id === id);
+            if (!emp) return;
             showAddForm();
             document.getElementById('form-title').innerText = 'تعديل بيانات الموظف';
             document.getElementById('emp-id').value = emp.id;
@@ -394,6 +416,7 @@
             document.getElementById('emp-date').value = emp.hireDate;
             document.getElementById('emp-title').value = emp.jobTitle;
             document.getElementById('emp-status').value = emp.status;
+            initIcons();
         }
 
         function deleteEmployee(id) {
@@ -407,50 +430,59 @@
             }
         }
 
-        // Share File
-        function shareFile(base64, label) {
-            const text = `مرفق ${label} الخاص بالموظف.`;
-            const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-            window.open(url, '_blank');
+        // --- وظائف الصور والإكسل ---
+        function openPreview(src, title) {
+            if (!src) return;
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            const modalTitle = document.getElementById('modal-title');
+            modalImg.src = src;
+            modalTitle.innerText = title;
+            modal.classList.remove('hidden');
+            initIcons();
         }
 
-        // Excel Import
+        function closeModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        function printCurrentDoc() {
+            const img = document.getElementById('modal-img');
+            const win = window.open('', '_blank');
+            win.document.write(`<html><body style="margin:0;display:flex;justify-content:center;align-items:center;"><img src="${img.src}" style="max-width:100%;"><script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+            win.document.close();
+        }
+
         function handleExcelImport(event) {
             const file = event.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
-
-                const imported = json.map(row => ({
-                    id: Date.now().toString() + Math.random(),
-                    name: row['الاسم'] || row['Name'] || 'غير معروف',
-                    idNumber: String(row['رقم الهوية'] || row['ID Number'] || ''),
-                    employeeNumber: String(row['الرقم الوظيفي'] || row['Employee ID'] || ''),
-                    phone: String(row['رقم الجوال'] || row['Phone'] || ''),
-                    hireDate: row['تاريخ التعيين'] || '',
-                    jobTitle: row['المسمى الوظيفي'] || 'حارس امن',
-                    status: row['الحالة'] || 'نشط',
-                    idImage: null,
-                    securityFile: null
-                }));
-
-                employees = [...employees, ...imported];
-                localStorage.setItem('employees_html_db', JSON.stringify(employees));
-                renderList();
-                alert('تم استيراد البيانات بنجاح');
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                    const imported = json.map(row => ({
+                        id: Date.now().toString() + Math.random().toString(36).substring(7),
+                        name: row['الاسم'] || row['Name'] || 'غير معروف',
+                        idNumber: String(row['رقم الهوية'] || row['ID'] || ''),
+                        employeeNumber: String(row['الرقم الوظيفي'] || row['Code'] || ''),
+                        phone: String(row['رقم الجوال'] || row['Phone'] || ''),
+                        hireDate: row['تاريخ التعيين'] || row['Hire Date'] || '',
+                        jobTitle: row['المسمى الوظيفي'] || row['Title'] || 'حارس امن',
+                        status: row['الحالة'] || row['Status'] || 'نشط',
+                        idImage: null, securityFile: null
+                    }));
+                    employees = [...employees, ...imported];
+                    localStorage.setItem('employees_html_db', JSON.stringify(employees));
+                    renderList();
+                } catch (error) { console.error(error); }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        // Init
-        window.onload = () => {
-            renderList();
-            initIcons();
-        };
+        window.onload = () => { renderList(); initIcons(); };
     </script>
 </body>
 </html>
