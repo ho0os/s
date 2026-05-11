@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة الموظفين المتطور</title>
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS for Excel Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans Arabic', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; padding: 0; }
+            .printable-area { border: none !important; shadow: none !important; }
+        }
+    </style>
+</head>
+<body class="text-right">
+
+    <div id="app" class="min-h-screen p-4 md:p-8">
+        <!-- Header -->
+        <header class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 no-print">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-900">نظام الموظفين الرقمي</h1>
+                <p class="text-gray-500 mt-1">إدارة شاملة للبيانات، الوثائق، والأرشفة</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="showAddForm()" class="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-all shadow-md active:scale-95">
+                    <i data-lucide="user-plus"></i> إضافة موظف جديد
+                </button>
+                <label class="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-all cursor-pointer shadow-md active:scale-95">
+                    <i data-lucide="upload"></i> استيراد إكسل
+                    <input type="file" id="excel-input" class="hidden" accept=".xlsx, .xls" onchange="handleExcelImport(event)">
+                </label>
+            </div>
+        </header>
+
+        <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Sidebar: Search & List -->
+            <div class="lg:col-span-4 space-y-4 no-print">
+                <div class="relative group">
+                    <i data-lucide="search" class="absolute right-3 top-3.5 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                    <input type="text" id="search-input" oninput="filterEmployees()" placeholder="ابحث بالاسم، الهوية، أو الرقم..." class="w-full pr-10 pl-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm">
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    <div class="p-4 border-b bg-gray-50/50 flex justify-between items-center">
+                        <span class="text-sm font-bold text-gray-500" id="list-count">قائمة الموظفين (0)</span>
+                    </div>
+                    <div id="employee-list">
+                        <!-- Employee list items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="lg:col-span-8">
+                <!-- Form Area (Hidden by default) -->
+                <div id="form-container" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-gray-100 no-print">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-2xl font-bold text-gray-800" id="form-title">إضافة موظف جديد</h2>
+                        <button onclick="hideForm()" class="p-2 bg-gray-100 text-gray-400 hover:text-red-500 rounded-full transition"><i data-lucide="x"></i></button>
+                    </div>
+                    <form id="employee-form" onsubmit="saveEmployee(event)" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <input type="hidden" id="emp-id">
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">الاسم الكامل</label>
+                            <input required id="emp-name" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="أدخل الاسم الرباعي">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">رقم الهوية</label>
+                            <input required id="emp-id-number" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="10xxxxxxxx">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">الرقم الوظيفي</label>
+                            <input required id="emp-number" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="EMP-000">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">رقم الجوال</label>
+                            <input required id="emp-phone" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="05xxxxxxxx">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">تاريخ التعيين</label>
+                            <input required type="date" id="emp-date" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">المسمى الوظيفي</label>
+                            <select id="emp-title" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                <option value="حارس امن">حارس امن</option>
+                                <option value="مشرف استقبال">مشرف استقبال</option>
+                                <option value="حارس استقبال">حارس استقبال</option>
+                                <option value="كنترول">كنترول</option>
+                                <option value="مشرف">مشرف</option>
+                                <option value="مشرفة">مشرفة</option>
+                                <option value="حارسة">حارسة</option>
+                                <option value="منسق">منسق</option>
+                                <option value="مشرف عام">مشرف عام</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-bold text-gray-700">الحالة الوظيفية</label>
+                            <select id="emp-status" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                <option value="نشط">نشط</option>
+                                <option value="إجازة">إجازة</option>
+                                <option value="موقوف">موقوف</option>
+                                <option value="مستقيل">مستقيل</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div class="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center bg-gray-50">
+                                <p class="text-sm font-bold text-gray-600 mb-2">صورة الهوية</p>
+                                <input type="file" id="emp-id-img" accept="image/*" class="text-xs">
+                            </div>
+                            <div class="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center bg-gray-50">
+                                <p class="text-sm font-bold text-gray-600 mb-2">الملف الأمني</p>
+                                <input type="file" id="emp-sec-file" class="text-xs">
+                            </div>
+                        </div>
+                        <button type="submit" class="md:col-span-2 bg-blue-600 text-white py-4 rounded-2xl mt-4 font-bold flex items-center justify-center gap-2 shadow-lg">
+                            <i data-lucide="save"></i> حفظ البيانات
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Detail View Area -->
+                <div id="detail-container" class="hidden">
+                    <!-- Dynamic Content -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="bg-white p-20 rounded-3xl border-2 border-dashed border-gray-200 text-center flex flex-col items-center justify-center">
+                    <div class="bg-blue-50 p-8 rounded-full mb-6 text-blue-200">
+                        <i data-lucide="briefcase" size="64" style="width: 64px; height: 64px;"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-400">نظام الموظفين الرقمي</h2>
+                    <p class="text-gray-400 mt-2 max-w-sm">اختر موظفاً لعرض ملفه أو أضف موظفاً جديداً</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let employees = JSON.parse(localStorage.getItem('employees_html_db')) || [];
+        let selectedId = null;
+
+        // Initialize Icons
+        function initIcons() {
+            lucide.createIcons();
+        }
+
+        // Render Sidebar List
+        function renderList(list = employees) {
+            const listContainer = document.getElementById('employee-list');
+            const countLabel = document.getElementById('list-count');
+            countLabel.innerText = `قائمة الموظفين (${list.length})`;
+            
+            listContainer.innerHTML = list.map(emp => `
+                <div onclick="viewEmployee('${emp.id}')" class="p-4 border-b last:border-0 cursor-pointer transition-all hover:bg-blue-50 ${selectedId === emp.id ? 'bg-blue-50 border-r-4 border-r-blue-600' : ''}">
+                    <p class="font-bold text-gray-800 text-right">${emp.name}</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-md text-gray-600">${emp.jobTitle}</span>
+                        <span class="text-xs text-gray-400 font-mono">#${emp.employeeNumber}</span>
+                    </div>
+                </div>
+            `).join('');
+            initIcons();
+        }
+
+        // Filter Function
+        function filterEmployees() {
+            const val = document.getElementById('search-input').value.toLowerCase();
+            const filtered = employees.filter(e => 
+                e.name.toLowerCase().includes(val) || 
+                e.idNumber.includes(val) || 
+                e.employeeNumber.includes(val)
+            );
+            renderList(filtered);
+        }
+
+        // Show/Hide UI Parts
+        function showAddForm() {
+            selectedId = null;
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('detail-container').classList.add('hidden');
+            document.getElementById('form-container').classList.remove('hidden');
+            document.getElementById('employee-form').reset();
+            document.getElementById('emp-id').value = '';
+            document.getElementById('form-title').innerText = 'إضافة موظف جديد';
+            initIcons();
+        }
+
+        function hideForm() {
+            document.getElementById('form-container').classList.add('hidden');
+            if (!selectedId) document.getElementById('empty-state').classList.remove('hidden');
+            else document.getElementById('detail-container').classList.remove('hidden');
+        }
+
+        // File to Base64 helper
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        // Save Function
+        async function saveEmployee(e) {
+            e.preventDefault();
+            const id = document.getElementById('emp-id').value || Date.now().toString();
+            
+            const idImgFile = document.getElementById('emp-id-img').files[0];
+            const secFile = document.getElementById('emp-sec-file').files[0];
+
+            let existingEmp = employees.find(e => e.id === id);
+
+            const newEmp = {
+                id,
+                name: document.getElementById('emp-name').value,
+                idNumber: document.getElementById('emp-id-number').value,
+                employeeNumber: document.getElementById('emp-number').value,
+                phone: document.getElementById('emp-phone').value,
+                hireDate: document.getElementById('emp-date').value,
+                jobTitle: document.getElementById('emp-title').value,
+                status: document.getElementById('emp-status').value,
+                idImage: idImgFile ? await toBase64(idImgFile) : (existingEmp ? existingEmp.idImage : null),
+                securityFile: secFile ? await toBase64(secFile) : (existingEmp ? existingEmp.securityFile : null)
+            };
+
+            if (document.getElementById('emp-id').value) {
+                employees = employees.map(e => e.id === id ? newEmp : e);
+            } else {
+                employees.push(newEmp);
+            }
+
+            localStorage.setItem('employees_html_db', JSON.stringify(employees));
+            renderList();
+            viewEmployee(id);
+            hideForm();
+        }
+
+        // View Detail
+        function viewEmployee(id) {
+            selectedId = id;
+            const emp = employees.find(e => e.id === id);
+            if (!emp) return;
+
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('form-container').classList.add('hidden');
+            const detailView = document.getElementById('detail-container');
+            detailView.classList.remove('hidden');
+
+            const serviceDuration = calculateDuration(emp.hireDate);
+
+            detailView.innerHTML = `
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden printable-area">
+                    <div class="bg-gradient-to-l from-blue-700 to-blue-500 p-8 text-white flex flex-col md:flex-row justify-between items-center gap-6 no-print">
+                        <div class="flex gap-6 items-center flex-col md:flex-row">
+                            <div class="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-xl border border-white/30"><i data-lucide="user" size="40"></i></div>
+                            <div>
+                                <h2 class="text-2xl font-bold">${emp.name}</h2>
+                                <div class="flex gap-2 mt-1">
+                                    <span class="bg-white/20 px-2 py-0.5 rounded text-xs">${emp.jobTitle}</span>
+                                    <span class="bg-white/20 px-2 py-0.5 rounded text-xs">رقم: ${emp.employeeNumber}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editEmployee('${emp.id}')" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg"><i data-lucide="edit"></i></button>
+                            <button onclick="window.print()" class="p-2 bg-white/20 hover:bg-white/30 rounded-lg"><i data-lucide="printer"></i></button>
+                            <button onclick="deleteEmployee('${emp.id}')" class="p-2 bg-red-500/30 hover:bg-red-500/50 rounded-lg text-white"><i data-lucide="trash-2"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div class="space-y-6">
+                                <h3 class="text-lg font-bold text-blue-900 border-r-4 border-blue-600 pr-3">المعلومات الشخصية</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
+                                        <i data-lucide="badge-check" class="text-blue-600"></i>
+                                        <div><p class="text-[10px] text-gray-400">رقم الهوية</p><p class="font-bold">${emp.idNumber}</p></div>
+                                    </div>
+                                    <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
+                                        <i data-lucide="calendar" class="text-blue-600"></i>
+                                        <div><p class="text-[10px] text-gray-400">تاريخ التعيين</p><p class="font-bold">${emp.hireDate}</p></div>
+                                    </div>
+                                    <div class="p-4 bg-blue-600 text-white rounded-2xl shadow-md">
+                                        <p class="text-[10px] opacity-80">مدة الخدمة</p>
+                                        <p class="text-lg font-bold">${serviceDuration}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-6">
+                                <h3 class="text-lg font-bold text-blue-900 border-r-4 border-blue-600 pr-3">التواصل والوثائق</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                        <div class="flex items-center gap-4">
+                                            <i data-lucide="phone" class="text-emerald-600"></i>
+                                            <div><p class="text-[10px] text-gray-400">رقم الجوال</p><p class="font-bold">${emp.phone}</p></div>
+                                        </div>
+                                        <a href="https://wa.me/${emp.phone}" target="_blank" class="bg-emerald-500 text-white p-2 rounded-lg no-print"><i data-lucide="external-link" size="16"></i></a>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="text-center">
+                                            <p class="text-[10px] font-bold text-gray-500 mb-1">صورة الهوية</p>
+                                            <div class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border">
+                                                ${emp.idImage ? `<img src="${emp.idImage}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="text-gray-300"></i>`}
+                                            </div>
+                                            <button onclick="shareFile('${emp.idImage}', 'صورة الهوية')" class="mt-2 text-[10px] text-emerald-600 no-print flex items-center gap-1 mx-auto"><i data-lucide="share-2" size="12"></i> مشاركة واتساب</button>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-[10px] font-bold text-gray-500 mb-1">الملف الأمني</p>
+                                            <div class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border">
+                                                ${emp.securityFile ? 
+                                                    (emp.securityFile.startsWith('data:application/pdf') ? `<i data-lucide="file-text" class="text-red-500"></i>` : `<img src="${emp.securityFile}" class="w-full h-full object-cover">`) 
+                                                    : `<i data-lucide="file-text" class="text-gray-300"></i>`}
+                                            </div>
+                                            <button onclick="shareFile('${emp.securityFile}', 'الملف الأمني')" class="mt-2 text-[10px] text-emerald-600 no-print flex items-center gap-1 mx-auto"><i data-lucide="share-2" size="12"></i> مشاركة واتساب</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            initIcons();
+            renderList();
+        }
+
+        // Calculation Service Duration
+        function calculateDuration(dateStr) {
+            if (!dateStr) return "غير متوفر";
+            const start = new Date(dateStr);
+            const end = new Date();
+            let years = end.getFullYear() - start.getFullYear();
+            let months = end.getMonth() - start.getMonth();
+            let days = end.getDate() - start.getDate();
+            if (days < 0) { months--; days += 30; }
+            if (months < 0) { years--; months += 12; }
+            return `${years} سنة و ${months} شهر و ${days} يوم`;
+        }
+
+        // Edit/Delete
+        function editEmployee(id) {
+            const emp = employees.find(e => e.id === id);
+            showAddForm();
+            document.getElementById('form-title').innerText = 'تعديل بيانات الموظف';
+            document.getElementById('emp-id').value = emp.id;
+            document.getElementById('emp-name').value = emp.name;
+            document.getElementById('emp-id-number').value = emp.idNumber;
+            document.getElementById('emp-number').value = emp.employeeNumber;
+            document.getElementById('emp-phone').value = emp.phone;
+            document.getElementById('emp-date').value = emp.hireDate;
+            document.getElementById('emp-title').value = emp.jobTitle;
+            document.getElementById('emp-status').value = emp.status;
+        }
+
+        function deleteEmployee(id) {
+            if (confirm('هل أنت متأكد من الحذف؟')) {
+                employees = employees.filter(e => e.id !== id);
+                localStorage.setItem('employees_html_db', JSON.stringify(employees));
+                selectedId = null;
+                renderList();
+                document.getElementById('detail-container').classList.add('hidden');
+                document.getElementById('empty-state').classList.remove('hidden');
+            }
+        }
+
+        // Share File
+        function shareFile(base64, label) {
+            const text = `مرفق ${label} الخاص بالموظف.`;
+            const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        // Excel Import
+        function handleExcelImport(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                const imported = json.map(row => ({
+                    id: Date.now().toString() + Math.random(),
+                    name: row['الاسم'] || row['Name'] || 'غير معروف',
+                    idNumber: String(row['رقم الهوية'] || row['ID Number'] || ''),
+                    employeeNumber: String(row['الرقم الوظيفي'] || row['Employee ID'] || ''),
+                    phone: String(row['رقم الجوال'] || row['Phone'] || ''),
+                    hireDate: row['تاريخ التعيين'] || '',
+                    jobTitle: row['المسمى الوظيفي'] || 'حارس امن',
+                    status: row['الحالة'] || 'نشط',
+                    idImage: null,
+                    securityFile: null
+                }));
+
+                employees = [...employees, ...imported];
+                localStorage.setItem('employees_html_db', JSON.stringify(employees));
+                renderList();
+                alert('تم استيراد البيانات بنجاح');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Init
+        window.onload = () => {
+            renderList();
+            initIcons();
+        };
+    </script>
+</body>
+</html>
