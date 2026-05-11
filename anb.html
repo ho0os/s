@@ -148,7 +148,7 @@
                                 <input type="file" id="emp-id-img" accept="image/*" class="text-xs">
                             </div>
                             <div class="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center bg-gray-50">
-                                <p class="text-sm font-bold text-gray-600 mb-2">الملف الأمني</p>
+                                <p class="text-sm font-bold text-gray-600 mb-2">الملف الأمني (PDF/Image)</p>
                                 <input type="file" id="emp-sec-file" class="text-xs">
                             </div>
                         </div>
@@ -179,6 +179,9 @@
             <div class="p-4 border-b flex justify-between items-center bg-gray-50">
                 <h3 id="modal-title" class="font-bold text-gray-700">معاينة الوثيقة</h3>
                 <div class="flex gap-2">
+                    <button id="modal-open-btn" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-full transition" title="فتح في نافذة جديدة">
+                        <i data-lucide="external-link"></i>
+                    </button>
                     <button onclick="printCurrentDoc()" class="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition" title="طباعة الوثيقة">
                         <i data-lucide="printer"></i>
                     </button>
@@ -316,6 +319,17 @@
             hideForm();
         }
 
+        function openFileInNewWindow(base64) {
+            if (!base64) return;
+            const win = window.open();
+            if (base64.startsWith('data:application/pdf')) {
+                 win.document.write(`<iframe src="${base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+            } else {
+                 win.document.write(`<html><body style="margin:0;display:flex;justify-content:center;background:#1a1a1a;"><img src="${base64}" style="max-width:100%; height:auto; object-fit:contain;"></body></html>`);
+            }
+            win.document.title = "عرض الملف";
+        }
+
         function viewEmployee(id) {
             selectedId = id;
             const emp = employees.find(e => e.id === id);
@@ -385,12 +399,16 @@
                                             <div onclick="openPreview('${emp.idImage}', 'صورة هوية: ${emp.name}')" class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border hover:border-blue-500 cursor-zoom-in transition-all relative">
                                                 ${emp.idImage ? `<img src="${emp.idImage}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="text-gray-300"></i>`}
                                             </div>
+                                            ${emp.idImage ? `<button onclick="openFileInNewWindow('${emp.idImage}')" class="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto no-print"><i data-lucide="maximize" size="12"></i> فتح كامل</button>` : ''}
                                         </div>
                                         <div class="text-center group">
                                             <p class="text-[10px] font-bold text-gray-500 mb-1">الملف الأمني</p>
                                             <div onclick="openPreview('${emp.securityFile}', 'الملف الأمني: ${emp.name}')" class="h-24 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center border hover:border-blue-500 cursor-zoom-in transition-all relative">
-                                                ${emp.securityFile ? `<img src="${emp.securityFile}" class="w-full h-full object-cover">` : `<i data-lucide="file-text" class="text-gray-300"></i>`}
+                                                ${emp.securityFile ? 
+                                                    (emp.securityFile.startsWith('data:application/pdf') ? `<i data-lucide="file-text" class="text-red-500"></i>` : `<img src="${emp.securityFile}" class="w-full h-full object-cover">`) 
+                                                    : `<i data-lucide="file-text" class="text-gray-300"></i>`}
                                             </div>
+                                            ${emp.securityFile ? `<button onclick="openFileInNewWindow('${emp.securityFile}')" class="mt-2 text-xs text-emerald-600 hover:underline flex items-center gap-1 mx-auto no-print"><i data-lucide="external-link" size="12"></i> فتح الملف</button>` : ''}
                                         </div>
                                     </div>
                                 </div>
@@ -436,8 +454,12 @@
             const modal = document.getElementById('image-modal');
             const modalImg = document.getElementById('modal-img');
             const modalTitle = document.getElementById('modal-title');
+            const openBtn = document.getElementById('modal-open-btn');
+            
             modalImg.src = src;
             modalTitle.innerText = title;
+            openBtn.onclick = () => openFileInNewWindow(src);
+            
             modal.classList.remove('hidden');
             initIcons();
         }
